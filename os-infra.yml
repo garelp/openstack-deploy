@@ -3,8 +3,8 @@
   remote_user: root
   tags:
     all_hosts
-  vars:
-    ntp_server: fr.pool.ntp.org
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: "Install chrony(ntp) and add-apt-repository"
       apt: name="{{ item }}" update_cache=yes state=latest
@@ -37,8 +37,8 @@
 
 - hosts: [os_controllers]
   remote_user: root
-  vars:
-    mariadb_root_pass: "root"
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: "set mariadb root password"
       debconf: name="mariadb-server-5.5" question="{{ item }}" vtype="password" value="{{ mariadb_root_pass }}"
@@ -67,7 +67,7 @@
     - name: "Remove the test database"
       mysql_db: db=test state=absent login_user=root login_password="{{ mariadb_root_pass }}"
 
-    - name: "write conf files"
+    - name: "write Mysql conf files"
       template: src=./templates/mysqld_openstack.cnf.j2 dest=/etc/mysql/conf.d/mysqld_openstack.cnf
       notify:
         - "restart services"
@@ -75,15 +75,14 @@
     - name: "Install rabbitmq"
       apt: name="rabbitmq-server" state=latest
 
-    - name: "Add openstack user"
-      rabbitmq_user: user=openstack
-                     password=openstack
+    - name: "Add rabbitmq user"
+      rabbitmq_user: user={{ rabbitmq_user }}
+                     password={{ rabbitmq_pass }}
                      vhost=/
                      configure_priv=.*
                      read_priv=.*
                      write_priv=.*
                      state=present
-
 
   handlers:
     - name: "restart services"

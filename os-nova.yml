@@ -2,20 +2,9 @@
 - hosts: os_controllers
   remote_user: root
   vars:
-    mariadb_root_pass: root
-    keystone_host: controller
-    keystone_admin_port: 35357
-    keystone_service_port: 5000
-    nova_host: controller
-    NOVA_PASS: nova
-    NOVA_DBPASS: nova
-    neutron_host: controller
-    NEUTRON_PASS: neutron
-    NEUTRON_DBPASS: neutron
-    METADATA_SECRET: metadata
-    admin_token: 610dc66b065a428c4aea
     verbose: true
-    nova_ceilometer_enabled: false
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: create nova database
       mysql_db: name=nova state=present login_user=root login_password="{{ mariadb_root_pass }}"
@@ -138,23 +127,11 @@
 - hosts: os_compute_nodes
   remote_user: root
   vars:
-    mariadb_root_pass: root
-    keystone_host: controller
-    keystone_admin_port: 35357
-    keystone_service_port: 5000
-    nova_host: controller
-    NOVA_PASS: nova
-    NOVA_DBPASS: nova
-    nova_ceilometer_enabled: false
-    neutron_host: controller
-    NEUTRON_PASS: neutron
-    NEUTRON_DBPASS: neutron
-    METADATA_SECRET: metadata
-    admin_token: 610dc66b065a428c4aea
     verbose: true
-    nova_console_host: 172.16.95.60
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
-    - name: "Install nova"
+    - name: "Install nova Compute"
       apt: name="{{ item }}" update_cache=yes state=latest
       with_items:
         - nova-compute
@@ -162,6 +139,9 @@
 
     - name: "write conf files"
       template: src=./templates/nova.conf.j2 dest=/etc/nova/nova.conf
+
+    - name: "write nova compute conf files"
+      template: src=./templates/nova-compute.conf.j2 dest=/etc/nova/nova-compute.conf
 
     - name: "restart nova services"
       service: name=nova-{{ item }} state=restarted

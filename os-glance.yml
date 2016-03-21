@@ -2,16 +2,9 @@
 - hosts: os_controllers
   remote_user: root
   vars:
-    mariadb_root_pass: root
-    keystone_host: controller
-    keystone_admin_port: 35357
-    keystone_service_port: 5000
-    glance_host: controller
-    GLANCE_PASS: glance
-    GLANCE_DBPASS: glance
-    glance_ceilometer_enabled: true
-    admin_token: 610dc66b065a428c4aea
     verbose: true
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: create glance database
       mysql_db: name=glance state=present login_user=root login_password="{{ mariadb_root_pass }}"

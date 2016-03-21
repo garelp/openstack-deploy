@@ -2,18 +2,9 @@
 - hosts: os_controllers
   remote_user: root
   vars:
-    mariadb_root_pass: root
-    keystone_host: controller
-    keystone_admin_port: 35357
-    keystone_service_port: 5000
-    nova_host: controller
-    NOVA_PASS: nova
-    neutron_host: controller
-    NEUTRON_PASS: neutron
-    NEUTRON_DBPASS: neutron
-    METADATA_SECRET: metadata
-    admin_token: 610dc66b065a428c4aea
     verbose: true
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: create neutron database
       mysql_db: name=neutron state=present login_user=root login_password="{{ mariadb_root_pass }}"
@@ -117,7 +108,7 @@
                 group=neutron
                 mode=0644
       with_items:
-        - {src: neutron.conf.j2, dst: neutron.conf} 
+        - {src: neutron.conf.j2, dst: neutron.conf}
         - {src: ml2_conf.ini.j2, dst: plugins/ml2/ml2_conf.ini}
 
     - name: "populate database"
@@ -136,18 +127,9 @@
 - hosts: os_network_nodes
   remote_user: root
   vars:
-    mariadb_root_pass: root
-    keystone_host: controller
-    keystone_admin_port: 35357
-    keystone_service_port: 5000
-    nova_host: controller
-    NOVA_PASS: nova
-    neutron_host: controller
-    NEUTRON_PASS: neutron
-    NEUTRON_DBPASS: neutron
-    METADATA_SECRET: metadata
-    admin_token: 610dc66b065a428c4aea
     verbose: true
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: "disable reverse path filtering"
       lineinfile: dest=/etc/sysctl.conf create=yes
@@ -178,7 +160,7 @@
                 group=neutron
                 mode=0644
       with_items:
-        - {src: neutron.conf.j2, dst: neutron.conf} 
+        - {src: neutron.conf.j2, dst: neutron.conf}
         - {src: metadata_agent.ini.j2, dst: metadata_agent.ini}
         - {src: dhcp_agent.ini.j2, dst: dhcp_agent.ini}
         - {src: l3_agent.ini.j2, dst: l3_agent.ini}
@@ -203,17 +185,9 @@
 - hosts: os_compute_nodes
   remote_user: root
   vars:
-    mariadb_root_pass: root
-    keystone_host: controller
-    keystone_admin_port: 35357
-    keystone_service_port: 5000
-    nova_host: controller
-    NOVA_PASS: nova
-    neutron_host: controller
-    NEUTRON_PASS: neutron
-    NEUTRON_DBPASS: neutron
-    admin_token: 610dc66b065a428c4aea
     verbose: true
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: "disable reverse path filtering"
       lineinfile: dest=/etc/sysctl.conf create=yes
@@ -236,7 +210,7 @@
 
     - name: "write conf files"
       template: src=./templates/{{ item.src }}
-                dest=/etc/neutron/{{ item.dst }} 
+                dest=/etc/neutron/{{ item.dst }}
                 owner=root
                 group=neutron
                 mode=0644

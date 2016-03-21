@@ -2,19 +2,9 @@
 - hosts: os_storage_nodes
   remote_user: root
   vars:
-    mariadb_root_pass: root
-    keystone_host: controller
-    keystone_admin_port: 35357
-    keystone_service_port: 5000
-    cinder_host: controller
-    glance_host: controller
-    CINDER_PASS: cinder
-    CINDER_DBPASS: cinder
-    cinder_volume_group: cinder-volumes
-    cinder_device: /dev/sdb
-    cinder_ceilometer_enabled: false
-    admin_token: 610dc66b065a428c4aea
     verbose: true
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: create cinder database
       mysql_db: name=cinder state=present login_user=root login_password="{{ mariadb_root_pass }}"
