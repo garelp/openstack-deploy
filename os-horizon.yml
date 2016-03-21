@@ -8,7 +8,7 @@
       apt: name=openstack-dashboard-ubuntu-theme state=absent
 
     - name: "copy config file"
-      copy: src=./horizon/local_settings.py
+      template: src=./templates/local_settings.py.j2
             dest=/etc/openstack-dashboard/local_settings.py
             owner=root
             group=root
