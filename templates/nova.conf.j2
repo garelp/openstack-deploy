@@ -1,0 +1,110 @@
+[DEFAULT]
+dhcpbridge_flagfile=/etc/nova/nova.conf
+dhcpbridge=/usr/bin/nova-dhcpbridge
+logdir=/var/log/nova
+state_path=/var/lib/nova
+lock_path=/var/lock/nova
+force_dhcp_release=True
+libvirt_use_virtio_for_bridges=True
+verbose={{ verbose }}
+ec2_private_dns_show_ip=True
+api_paste_config=/etc/nova/api-paste.ini
+enabled_apis=osapi_compute,metadata
+scheduler_default_filters = AllHostsFilter
+
+auth_strategy = keystone
+rpc_backend = rabbit
+
+my_ip = {{ ansible_default_ipv4.address }}
+
+network_api_class = nova.network.neutronv2.api.API
+security_group_api = neutron
+linuxnet_interface_driver = nova.network.linux_net.LinuxOVSInterfaceDriver
+firewall_driver = nova.virt.firewall.NoopFirewallDriver
+
+{% if inventory_hostname in groups['os_compute_nodes'] %}
+{% if nova_ceilometer_enabled %}
+instance_usage_audit = True
+instance_usage_audit_period = hour
+notify_on_state_change = vm_and_task_state
+notification_driver = messagingv2
+{% endif %}
+{% endif %}
+
+[keystone_authtoken]
+
+auth_uri = http://{{ keystone_host }}:{{ keystone_service_port }}
+auth_url = http://{{ keystone_host }}:{{ keystone_admin_port }}
+auth_plugin = password
+project_domain_id = default
+user_domain_id = default
+project_name = service
+username = nova
+password = {{ NOVA_PASS }}
+
+[oslo_messaging_rabbit]
+
+rabbit_host = controller
+rabbit_userid = openstack
+rabbit_password = openstack
+
+[glance]
+
+host = controller
+
+[oslo_concurrency]
+
+lock_path = /var/lib/nova/tmp
+
+{% if inventory_hostname in groups['os_controllers'] %}
+[vnc]
+
+#vncserver_listen = {{ ansible_default_ipv4.address }}
+#vncserver_proxyclient_address = {{ ansible_default_ipv4.address }}
+
+enabled = True
+vncserver_listen = 0.0.0.0
+vncserver_proxyclient_address = {{ ansible_default_ipv4.address }}
+novncproxy_base_url = http://{{ ansible_default_ipv4.address }}:6080/vnc_auto.html
+
+[database]
+
+connection = mysql+pymysql://nova:{{ NOVA_DBPASS }}@{{ nova_host }}/nova
+
+[neutron]
+
+url = http://{{ neutron_host }}:9696
+auth_url = http://{{ keystone_host }}:{{ keystone_admin_port }}
+auth_plugin = password
+project_domain_id = default
+user_domain_id = default
+region_name = RegionOne
+project_name = service
+username = neutron
+password = {{ NEUTRON_PASS }}
+
+service_metadata_proxy = True
+metadata_proxy_shared_secret = {{ METADATA_SECRET }}
+
+{% elif inventory_hostname in groups['os_compute_nodes'] %}
+
+[vnc]
+
+enabled = True
+vncserver_listen = 0.0.0.0
+vncserver_proxyclient_address = {{ ansible_hostname }}
+novncproxy_base_url = http://{{ nova_console_host }}:6080/vnc_auto.html
+
+[neutron]
+
+url = http://{{ neutron_host }}:9696
+auth_url = http://{{ keystone_host }}:{{ keystone_admin_port }}
+auth_plugin = password
+project_domain_id = default
+user_domain_id = default
+region_name = RegionOne
+project_name = service
+username = neutron
+password = {{ NEUTRON_PASS }}
+
+{% endif %}

@@ -1,0 +1,18 @@
+---
+- hosts: [os_controllers]
+  tasks:
+    - name: "Install dashboard"
+      apt: name=openstack-dashboard update_cache=yes state=latest
+
+    - name: "Remove ubuntu theme"
+      apt: name=openstack-dashboard-ubuntu-theme state=absent
+
+    - name: "copy config file"
+      copy: src=./horizon/local_settings.py
+            dest=/etc/openstack-dashboard/local_settings.py
+            owner=root
+            group=root
+            mode=0644
+
+    - name: "reload apache2"
+      service: name=apache2 state=reloaded

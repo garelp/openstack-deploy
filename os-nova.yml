@@ -1,0 +1,172 @@
+---
+- hosts: os_controllers
+  remote_user: root
+  vars:
+    mariadb_root_pass: root
+    keystone_host: controller
+    keystone_admin_port: 35357
+    keystone_service_port: 5000
+    nova_host: controller
+    NOVA_PASS: nova
+    NOVA_DBPASS: nova
+    neutron_host: controller
+    NEUTRON_PASS: neutron
+    NEUTRON_DBPASS: neutron
+    METADATA_SECRET: metadata
+    admin_token: 610dc66b065a428c4aea
+    verbose: true
+    nova_ceilometer_enabled: false
+  tasks:
+    - name: create nova database
+      mysql_db: name=nova state=present login_user=root login_password="{{ mariadb_root_pass }}"
+
+    - name: grant privileges to nova user in novadb
+      mysql_user: host="{{ item }}"
+                  name=nova
+                  password="{{ NOVA_DBPASS }}"
+                  priv=nova.*:ALL
+                  state=present
+                  login_user=root
+                  login_password="{{ mariadb_root_pass }}"
+      with_items:
+        - localhost
+        - "%"
+
+    - name: "find the nova user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user show nova
+      register: found
+      ignore_errors: True
+
+    - name: "create the nova user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user create
+               --domain default
+               --password {{ NOVA_PASS }}
+               nova
+      when: found | failed
+
+    - name: "add the admin role to nova user in the service project"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role add
+               --project service
+               --user nova
+               admin
+      when: found | failed
+
+    - name: "find the compute service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service show compute
+      register: found
+      ignore_errors: True
+
+    - name: "create the compute service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service create
+               --name nova
+               --description "OpenStack Compute"
+               compute
+      when: found | failed
+
+    - name: "find the compute endpoint"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v2.0
+               endpoint show compute
+      register: found
+      ignore_errors: True
+
+    - name: "create the compute service API endpoints"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               endpoint create
+               --region RegionOne
+               compute {{ item.endpoint }} http://{{ nova_host }}:{{ item.port }}/v2/%(tenant_id)s
+      with_items:
+        - { endpoint: public, port: 8774 }
+        - { endpoint: internal, port: 8774 }
+        - { endpoint: admin, port: 8774 }
+      when: found | failed
+
+    - name: "Install nova"
+      apt: name="{{ item }}" update_cache=yes state=latest
+      with_items:
+        - nova-api
+        - nova-cert
+        - nova-conductor
+        - nova-consoleauth
+        - nova-novncproxy
+        - nova-scheduler
+        - python-novaclient
+
+    - name: "write conf files"
+      template: src=./templates/nova.conf.j2 dest=/etc/nova/nova.conf
+
+    - name: "populate database"
+      shell: su -s /bin/sh -c "nova-manage db sync" nova
+
+    - name: "restart nova services"
+      service: name=nova-{{ item }} state=restarted
+      with_items:
+        - api
+        - cert
+        - consoleauth
+        - scheduler
+        - conductor
+        - novncproxy
+
+    - name: "remove SQLite database"
+      file: path=/var/lib/nova/nova.sqlite state=absent
+
+- hosts: os_compute_nodes
+  remote_user: root
+  vars:
+    mariadb_root_pass: root
+    keystone_host: controller
+    keystone_admin_port: 35357
+    keystone_service_port: 5000
+    nova_host: controller
+    NOVA_PASS: nova
+    NOVA_DBPASS: nova
+    nova_ceilometer_enabled: false
+    neutron_host: controller
+    NEUTRON_PASS: neutron
+    NEUTRON_DBPASS: neutron
+    METADATA_SECRET: metadata
+    admin_token: 610dc66b065a428c4aea
+    verbose: true
+    nova_console_host: 172.16.95.60
+  tasks:
+    - name: "Install nova"
+      apt: name="{{ item }}" update_cache=yes state=latest
+      with_items:
+        - nova-compute
+        - sysfsutils
+
+    - name: "write conf files"
+      template: src=./templates/nova.conf.j2 dest=/etc/nova/nova.conf
+
+    - name: "restart nova services"
+      service: name=nova-{{ item }} state=restarted
+      with_items:
+        - compute
+
+    - name: "remove SQLite database"
+      file: path=/var/lib/nova/nova.sqlite state=absent

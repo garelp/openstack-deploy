@@ -1,0 +1,50 @@
+[DEFAULT]
+rootwrap_config = /etc/cinder/rootwrap.conf
+api_paste_confg = /etc/cinder/api-paste.ini
+iscsi_helper = tgtadm
+volume_name_template = volume-%s
+volume_group = {{ cinder_volume_group }}
+verbose = {{ verbose }}
+auth_strategy = keystone
+state_path = /var/lib/cinder
+lock_path = /var/lock/cinder
+volumes_dir = /var/lib/cinder/volumes
+rpc_backend = rabbit
+my_ip = {{ ansible_default_ipv4.address }}
+enabled_backends = lvm
+glance_host = {{ glance_host }}
+
+
+[database]
+backend = sqlalchemy
+connection = mysql+pymysql://cinder:{{ CINDER_DBPASS }}@{{ cinder_host }}/cinder
+
+
+[oslo_messaging_rabbit]
+rabbit_host = controller
+rabbit_userid = openstack
+rabbit_password = openstack
+
+
+[oslo_concurrency]
+lock_path = /var/lib/cinder/tmp
+
+
+[keystone_authtoken]
+auth_uri = http://{{ keystone_host }}:{{ keystone_service_port }}
+auth_url = http://{{ keystone_host }}:{{ keystone_admin_port }}
+auth_plugin = password
+project_domain_id = default
+user_domain_id = default
+project_name = service
+username = cinder
+password = {{ CINDER_PASS }}
+auth_version=v3
+auth_protocol = http
+
+
+[lvm]
+volume_driver = cinder.volume.drivers.lvm.LVMVolumeDriver
+volume_group = {{ cinder_volume_group }}
+iscsi_protocol = iscsi
+iscsi_helper = tgtadm

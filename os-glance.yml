@@ -1,0 +1,126 @@
+---
+- hosts: os_controllers
+  remote_user: root
+  vars:
+    mariadb_root_pass: root
+    keystone_host: controller
+    keystone_admin_port: 35357
+    keystone_service_port: 5000
+    glance_host: controller
+    GLANCE_PASS: glance
+    GLANCE_DBPASS: glance
+    glance_ceilometer_enabled: true
+    admin_token: 610dc66b065a428c4aea
+    verbose: true
+  tasks:
+    - name: create glance database
+      mysql_db: name=glance state=present login_user=root login_password="{{ mariadb_root_pass }}"
+
+    - name: grant privileges to glance user in glancedb
+      mysql_user: host="{{ item }}"
+                  name=glance
+                  password="{{ GLANCE_DBPASS }}"
+                  priv=glance.*:ALL
+                  state=present
+                  login_user=root
+                  login_password="{{ mariadb_root_pass }}"
+      with_items:
+        - localhost
+        - "%"
+
+    - name: "find the glance user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user show glance
+      register: found
+      ignore_errors: True
+
+    - name: "create the glance user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user create
+               --domain default
+               --password {{ GLANCE_PASS }}
+               glance
+      when: found | failed
+
+    - name: "add the admin role to glance user in the service project"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role add
+               --project service
+               --user glance
+               admin
+      when: found | failed
+
+    - name: "find the image service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service show image
+      register: found
+      ignore_errors: True
+
+    - name: "create the image service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service create
+               --name glance
+               --description "OpenStack Image service"
+               image
+      when: found | failed
+
+    - name: "find the image endpoint"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v2.0
+               endpoint show image
+      register: found
+      ignore_errors: True
+
+    - name: "create the image service API endpoints"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               endpoint create
+               --region RegionOne
+               image {{ item.endpoint }} http://controller:{{ item.port }}
+      with_items:
+        - { endpoint: public, port: 9292 }
+        - { endpoint: internal, port: 9292 }
+        - { endpoint: admin, port: 9292 }
+      when: found | failed
+
+    - name: "Install glance"
+      apt: name="{{ item }}" update_cache=yes state=latest
+      with_items:
+        - glance
+        - python-glanceclient
+
+    - name: "write conf files"
+      template: src=./templates/glance-{{ item }}.conf.j2 dest=/etc/glance/glance-{{ item }}.conf
+      with_items:
+        - api
+        - registry
+
+    - name: "populate database"
+      shell: su -s /bin/sh -c "glance-manage db_sync" glance
+
+    - name: "restart glance services"
+      service: name=glance-{{ item }} state=restarted
+      with_items:
+        - api
+        - registry
+
+    - name: "remove SQLite database"
+      file: path=/var/lib/glance/glance.sqlite state=absent

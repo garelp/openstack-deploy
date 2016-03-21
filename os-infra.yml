@@ -1,0 +1,90 @@
+---
+- hosts: [openstack]
+  remote_user: root
+  tags:
+    all_hosts
+  vars:
+    ntp_server: fr.pool.ntp.org
+  tasks:
+    - name: "Install chrony(ntp) and add-apt-repository"
+      apt: name="{{ item }}" update_cache=yes state=latest
+      with_items:
+        - chrony
+        - software-properties-common
+
+    - name: "add apt repository"
+      command: add-apt-repository -y cloud-archive:liberty
+
+    - name: "upgrade packages"
+      apt: update_cache=yes upgrade=dist state=latest
+
+    - name: "install python-osclient"
+      apt: name="python-openstackclient" state=latest
+
+    - name: "write conf files"
+      template: src=./templates/chrony.conf.j2 dest=/etc/chrony/chrony.conf
+      notify:
+        - "restart services"
+
+    - name: "copy hosts file"
+      template: src=./templates/hosts.j2 dest=/etc/hosts
+      tags:
+        - multi-host
+
+  handlers:
+    - name: "restart services"
+      service: name=chrony enabled=yes state=restarted
+
+- hosts: [os_controllers]
+  remote_user: root
+  vars:
+    mariadb_root_pass: "root"
+  tasks:
+    - name: "set mariadb root password"
+      debconf: name="mariadb-server-5.5" question="{{ item }}" vtype="password" value="{{ mariadb_root_pass }}"
+      with_items:
+        - mysql-server/root_password
+        - mysql-server/root_password_again
+
+    - name: "Install SQL database"
+      apt: name="{{ item }}" update_cache=yes state=latest
+      with_items:
+        - mariadb-server
+        - python-pymysql
+        - python-mysqldb
+
+    - name: "Delete anonymous MariaDB user for localhost"
+      mysql_user: user="" state="absent" login_password="{{ mariadb_root_pass }}" login_user=root
+
+    - name: "Secure the MySQL root user"
+      mysql_user: user="root" password="{{ mariadb_root_pass }}" host="{{ item }}" login_user=root login_password="{{mariadb_root_pass}}"
+      with_items:
+        - 127.0.0.1
+        - localhost
+        - ::1
+        - "{{ ansible_hostname }}"
+
+    - name: "Remove the test database"
+      mysql_db: db=test state=absent login_user=root login_password="{{ mariadb_root_pass }}"
+
+    - name: "write conf files"
+      template: src=./templates/mysqld_openstack.cnf.j2 dest=/etc/mysql/conf.d/mysqld_openstack.cnf
+      notify:
+        - "restart services"
+
+    - name: "Install rabbitmq"
+      apt: name="rabbitmq-server" state=latest
+
+    - name: "Add openstack user"
+      rabbitmq_user: user=openstack
+                     password=openstack
+                     vhost=/
+                     configure_priv=.*
+                     read_priv=.*
+                     write_priv=.*
+                     state=present
+
+
+  handlers:
+    - name: "restart services"
+      service: name=mysql enabled=yes state=restarted

@@ -1,0 +1,14 @@
+[openstack]
+os-aio-1
+
+[os_controllers]
+os-aio-1
+
+[os_compute_nodes]
+os-aio-1
+
+[os_network_nodes]
+os-aio-1
+
+[os_storage_nodes]
+os-aio-1

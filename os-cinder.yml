@@ -1,0 +1,191 @@
+---
+- hosts: os_storage_nodes
+  remote_user: root
+  vars:
+    mariadb_root_pass: root
+    keystone_host: controller
+    keystone_admin_port: 35357
+    keystone_service_port: 5000
+    cinder_host: controller
+    glance_host: controller
+    CINDER_PASS: cinder
+    CINDER_DBPASS: cinder
+    cinder_volume_group: cinder-volumes
+    cinder_device: /dev/sdb
+    cinder_ceilometer_enabled: false
+    admin_token: 610dc66b065a428c4aea
+    verbose: true
+  tasks:
+    - name: create cinder database
+      mysql_db: name=cinder state=present login_user=root login_password="{{ mariadb_root_pass }}"
+
+    - name: grant privileges to glance user in glancedb
+      mysql_user: host="{{ item }}"
+                  name=cinder
+                  password="{{ CINDER_DBPASS }}"
+                  priv=cinder.*:ALL
+                  state=present
+                  login_user=root
+                  login_password="{{ mariadb_root_pass }}"
+      with_items:
+        - localhost
+        - "%"
+
+    - name: "find the cinder user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user show cinder
+      register: found
+      ignore_errors: True
+
+    - name: "create the cinder user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user create
+               --domain default
+               --password {{ CINDER_PASS }}
+               cinder
+      when: found | failed
+
+    - name: "add the admin role to cinder user in the service project"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role add
+               --project service
+               --user cinder
+               admin
+      when: found | failed
+
+    - name: "find the volumeV1 service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service show volume
+      register: found
+      ignore_errors: True
+
+    - name: "create the volumeV1 service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service create
+               --name cinder
+               --description "OpenStack Block Storage"
+               volume
+      when: found | failed
+
+    - name: "find the volumeV1 endpoint"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v2.0
+               endpoint show volume
+      register: found
+      ignore_errors: True
+
+    - name: "create the volumeV1 service API endpoints"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               endpoint create
+               --region RegionOne
+               volume {{ item.endpoint }} http://{{ cinder_host }}:{{ item.port }}/v1/%(tenant_id)s
+      with_items:
+        - { endpoint: public, port: 8776 }
+        - { endpoint: internal, port: 8776 }
+        - { endpoint: admin, port: 8776 }
+      when: found | failed
+
+    - name: "find the volumeV2 service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service show volumev2
+      register: found
+      ignore_errors: True
+
+    - name: "create the volumeV2 service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service create
+               --name cinderv2
+               --description "OpenStack Block Storage"
+               volumev2
+      when: found | failed
+
+    - name: "Install cinder"
+      apt: name="{{ item }}" update_cache=yes state=latest
+      with_items:
+        - cinder-api
+        - cinder-scheduler
+        - python-cinderclient
+        - cinder-volume
+        - python-mysqldb
+        - lvm2
+
+    - name: "find the volumeV2 endpoint"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v2.0
+               endpoint show volumev2
+      register: found
+      ignore_errors: True
+
+    - name: "create the volumeV2 service API endpoints"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               endpoint create
+               --region RegionOne
+               volumev2 {{ item.endpoint }} http://{{ cinder_host }}:{{ item.port }}/v2/%(tenant_id)s
+      with_items:
+        - { endpoint: public, port: 8776 }
+        - { endpoint: internal, port: 8776 }
+        - { endpoint: admin, port: 8776 }
+      when: found | failed
+
+    - name: "write cinder conf files"
+      template: src=./templates/cinder.conf.j2 dest=/etc/cinder/cinder.conf
+
+    - name: "populate cinder database"
+      shell: su -s /bin/sh -c "cinder-manage db sync" cinder
+
+    - name: "find physical disk for cinder volume"
+      shell: pvs {{ cinder_device }}
+      register: found
+      ignore_errors: true
+
+    - name: "add physical device to LVM"
+      command: pvcreate {{ cinder_device }}
+      when: found | failed
+
+    - name: "find cinder volume group"
+      command: vgs {{ cinder_volume_group }}
+      register: found
+      ignore_errors: True
+
+    - name: "create cinder volume group"
+      command: vgcreate {{ cinder_volume_group }} {{ cinder_device }}
+      when: found | failed
+
+    - name: "restart cinder services"
+      service: name=cinder-{{ item }} state=restarted
+      with_items:
+        - api
+        - volume
+        - scheduler
+
+    - name: "remove SQLite database"
+      file: path=/var/lib/cinder/cinder.sqlite state=absent

@@ -1,0 +1,50 @@
+[DEFAULT]
+core_plugin = ml2
+service_plugins = router
+allow_overlapping_ips = True
+rpc_backend = rabbit
+auth_strategy = keystone
+verbose = {{ verbose }}
+
+{% if inventory_hostname in groups['os_controllers'] %}
+notify_nova_on_port_status_changes = True
+notify_nova_on_port_data_changes = True
+nova_url = http://{{ nova_host }}:8774/v2
+{% endif %}
+
+[agent]
+root_helper = sudo /usr/bin/neutron-rootwrap /etc/neutron/rootwrap.conf
+
+[keystone_authtoken]
+auth_uri = http://{{ keystone_host }}:{{ keystone_service_port }}
+auth_url = http://{{ keystone_host }}:{{ keystone_admin_port }}
+auth_plugin = password
+project_domain_id = default
+user_domain_id = default
+project_name = service
+username = neutron
+password = {{ NEUTRON_PASS }}
+
+{% if inventory_hostname in groups['os_controllers'] %}
+[database]
+connection = mysql+pymysql://neutron:{{ NEUTRON_DBPASS }}@{{ neutron_host }}/neutron
+
+[nova]
+
+auth_url = http://controller:35357
+auth_plugin = password
+project_domain_id = default
+user_domain_id = default
+region_name = RegionOne
+project_name = service
+username = nova
+password = {{ NOVA_PASS }}
+{% endif %}
+
+[oslo_concurrency]
+lock_path = $state_path/lock
+
+[oslo_messaging_rabbit]
+rabbit_host = controller
+rabbit_userid = openstack
+rabbit_password = openstack
