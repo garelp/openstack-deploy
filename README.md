@@ -18,36 +18,36 @@ For cinder, you need add a disk to the storage node.
 
 ## Example:
 Deploy an All in One Openstack.
-1. Install the infra (Mysql, ntp...):
+- Install the infra (Mysql, ntp...):
 ```
 ansible-playbook -i hosts.aio --skip-tags multi-host -u root os-infra.yml
 ```
-2. Install Keystone:
+- Install Keystone:
 ```
 ansible-playbook -i hosts.aio  -u root os-keystone.yml
 ```
-3. Install Glance:
+- Install Glance:
 ```
 ansible-playbook -i hosts.aio  -u root os-glance.yml
 ```
-4. Install nova:
+- Install nova:
 ```
 ansible-playbook -i hosts.aio  -u root os-nova.yml
 ```
-5. Install Neutron:
+- Install Neutron:
 ```
 ansible-playbook -i hosts.aio  -u root os-keystone.yml
 ```
 **Warning: Don't forget to add the bridges.**
-6. Install Cinder:
+- Install Cinder:
 ```
 ansible-playbook -i hosts.aio  -u root os-cinder.yml
 ```
-7. Install Horizon:
+- Install Horizon:
 ```
 ansible-playbook -i hosts.aio  -u root os-horizon.yml
 ```
-8. Connect to the horizon web interface:
+- Connect to the horizon web interface:
 ```
 http://(your ip address)/horizon
 ```
