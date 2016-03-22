@@ -1,5 +1,7 @@
 ---
 - hosts: [os_controllers]
+  vars_files:
+    - ./vars/os-variables.yml
   tasks:
     - name: "Install dashboard"
       apt: name=openstack-dashboard update_cache=yes state=latest

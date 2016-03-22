@@ -40,3 +40,8 @@ CINDER_DBPASS: cinder
 cinder_volume_group: cinder-volumes
 cinder_device: /dev/sdb
 cinder_ceilometer_enabled: false
+
+# Heat
+heat_host: controller
+HEAT_PASS: heat
+HEAT_DBPASS: heat
