@@ -3,11 +3,7 @@ hosts
 
 os-ceilometer.yml
 
-os-heat.yml
-
 templates/ceilometer.conf.j2
-
-templates/heat.conf.j2
 
 templates/mongodb.conf.j2
 

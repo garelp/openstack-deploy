@@ -1,0 +1,195 @@
+---
+- hosts: os_controllers
+  remote_user: root
+  vars:
+    verbose: true
+  vars_files:
+    - ./vars/os-variables.yml
+  tasks:
+    - name: create heat database
+      mysql_db: name=heat state=present login_user=root login_password="{{ mariadb_root_pass }}"
+
+    - name: grant privileges to heat user in heatdb
+      mysql_user: host="{{ item }}"
+                  name=heat
+                  password="{{ HEAT_DBPASS }}"
+                  priv=heat.*:ALL
+                  state=present
+                  login_user=root
+                  login_password="{{ mariadb_root_pass }}"
+      with_items:
+        - localhost
+        - "%"
+
+    - name: "find the heat user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user show heat
+      register: found
+      ignore_errors: True
+
+    - name: "create the heat user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user create
+               --domain default
+               --password {{ HEAT_PASS }}
+               heat
+      when: found | failed
+
+    - name: "add the admin role to heat user in the service project"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role add
+               --project service
+               --user heat
+               admin
+      when: found | failed
+
+    - name: "find the orchestration service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service show orchestration
+      register: found
+      ignore_errors: True
+
+    - name: "create the compute service entity"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               service create
+               --name heat
+               --description "Orchestration"
+               orchestration
+      when: found | failed
+
+    - name: "find the compute endpoint"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v2.0
+               endpoint show orchestration
+      register: found
+      ignore_errors: True
+
+    - name: "create the compute service API endpoints"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               endpoint create
+               --region RegionOne
+               orchestration {{ item.endpoint }} http://{{ heat_host }}:{{ item.port }}/v1/%(tenant_id)s
+      with_items:
+        - { endpoint: public, port: 8004 }
+        - { endpoint: internal, port: 8004 }
+        - { endpoint: admin, port: 8004 }
+      when: found | failed
+
+    - name: "find the heat domain"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               domain show heat
+      register: found
+      ignore_errors: True
+
+    - name: "Create the heat domain that contains projects and users for stacks"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               domain create
+               --description "Stack projects and users"
+               heat
+      when: found | failed
+
+    - name: "find the heat_domain_admin user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user show heat_domain_admin
+      register: found
+      ignore_errors: True
+
+    - name: "Create the heat_domain_admin user to manage projects and users in the heat domain"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               user create --domain heat --password heat heat_domain_admin
+      when: found | failed
+
+    - name: "Add the admin role to the heat_domain_admin user"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role add --domain heat --user heat_domain_admin admin
+      when: found | failed
+
+    - name: "find the heat_stack_owner role"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role show heat_stack_owner
+      register: found
+      ignore_errors: True
+
+    - name: "Create the heat_stack_owner role"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role create heat_stack_owner
+      when: found | failed
+
+    - name: "find the heat_stack_user role"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role show heat_stack_user
+      register: found
+      ignore_errors: True
+
+    - name: "Create the heat_stack_user role"
+      command: openstack
+               --os-token {{ admin_token }}
+               --os-url http://{{ keystone_host }}:{{ keystone_admin_port }}/v3
+               --os-identity-api-version 3
+               role create heat_stack_user
+      when: found | failed
+
+    - name: "Install heat"
+      apt: name="{{ item }}" update_cache=yes state=latest
+      with_items:
+        - heat-api
+        - heat-engine
+        - python-heatclient
+
+    - name: "write conf files"
+      template: src=./templates/heat.conf.j2 dest=/etc/heat/heat.conf
+
+    - name: "populate database"
+      shell: su -s /bin/sh -c "heat-manage db_sync" heat
+
+    - name: "restart heat services"
+      service: name=heat-{{ item }} state=restarted
+      with_items:
+        - api
+        - engine
+
+    - name: "remove SQLite database"
+      file: path=/var/lib/heat/heat.sqlite state=absent
