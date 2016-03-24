@@ -1,7 +1,7 @@
 # Openstack Deploy
 Ansible playbooks to deploy a Openstack Liberty on Ubuntu 14.04
 
-## Neutron specific conig:
+## Neutron specific config:
 In order to make Neutron works you need to create manually some OVS bridges:
 
 ```
@@ -36,7 +36,7 @@ ansible-playbook -i hosts.aio  -u root os-nova.yml
 ```
 - Install Neutron:
 ```
-ansible-playbook -i hosts.aio  -u root os-keystone.yml
+ansible-playbook -i hosts.aio  -u root os-neutron.yml
 ```
 **Warning: Don't forget to add the bridges.**
 - Install Cinder:
