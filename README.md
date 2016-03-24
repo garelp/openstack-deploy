@@ -43,6 +43,10 @@ ansible-playbook -i hosts.aio  -u root os-neutron.yml
 ```
 ansible-playbook -i hosts.aio  -u root os-cinder.yml
 ```
+- Optionnaly Install Heat:
+```
+ansible-playbook -i hosts.aio  -u root os-heat.yml
+```
 - Install Horizon:
 ```
 ansible-playbook -i hosts.aio  -u root os-horizon.yml
