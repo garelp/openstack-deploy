@@ -1,6 +1,5 @@
 ---
 - hosts: os_controllers
-  remote_user: root
   vars:
     verbose: true
 

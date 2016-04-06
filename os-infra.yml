@@ -1,6 +1,6 @@
 ---
 - hosts: [openstack]
-  remote_user: root
+#  remote_user: root
   tags:
     all_hosts
   tasks:
@@ -34,9 +34,8 @@
       service: name=chrony enabled=yes state=restarted
 
 - hosts: [os_controllers]
-  remote_user: root
-  vars_files:
-    - ./vars/os-variables.yml
+#  remote_user: root
+
   tasks:
     - name: "set mariadb root password"
       debconf: name="mariadb-server-5.5" question="{{ item }}" vtype="password" value="{{ mariadb_root_pass }}"

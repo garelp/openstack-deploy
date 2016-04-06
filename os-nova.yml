@@ -1,6 +1,5 @@
 ---
 - hosts: os_controllers
-  remote_user: root
   vars:
     verbose: true
 
@@ -124,7 +123,6 @@
       file: path=/var/lib/nova/nova.sqlite state=absent
 
 - hosts: os_compute_nodes
-  remote_user: root
   vars:
     verbose: true
 
