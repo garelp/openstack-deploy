@@ -3,8 +3,6 @@
   remote_user: root
   vars:
     verbose: true
-  vars_files:
-    - ./vars/os-variables.yml
   tasks:
     - name: create glance database
       mysql_db: name=glance state=present login_user=root login_password="{{ mariadb_root_pass }}"

@@ -3,8 +3,7 @@
   remote_user: root
   vars:
     verbose: true
-  vars_files:
-    - ./vars/os-variables.yml
+
   tasks:
     - name: create nova database
       mysql_db: name=nova state=present login_user=root login_password="{{ mariadb_root_pass }}"
@@ -128,8 +127,7 @@
   remote_user: root
   vars:
     verbose: true
-  vars_files:
-    - ./vars/os-variables.yml
+
   tasks:
     - name: "Install nova Compute"
       apt: name="{{ item }}" update_cache=yes state=latest

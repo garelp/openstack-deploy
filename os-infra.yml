@@ -3,8 +3,6 @@
   remote_user: root
   tags:
     all_hosts
-  vars_files:
-    - ./vars/os-variables.yml
   tasks:
     - name: "Install chrony(ntp) and add-apt-repository"
       apt: name="{{ item }}" update_cache=yes state=latest

@@ -3,8 +3,7 @@
   remote_user: root
   vars:
     verbose: true
-  vars_files:
-    - ./vars/os-variables.yml
+
   tasks:
     - name: create neutron database
       mysql_db: name=neutron state=present login_user=root login_password="{{ mariadb_root_pass }}"
@@ -128,8 +127,7 @@
   remote_user: root
   vars:
     verbose: true
-  vars_files:
-    - ./vars/os-variables.yml
+
   tasks:
     - name: "disable reverse path filtering"
       lineinfile: dest=/etc/sysctl.conf create=yes
@@ -173,6 +171,14 @@
             group=neutron
             mode=0644
 
+    - name: "Checking if external bridge exists"
+      shell: "ovs-vsctl br-exists br-ex"
+      register: found_br
+
+    - name: "Creating external bridge"
+      shell: "ovs-vsctl add-br br-ex"
+      when: found_br.rc != 0
+
     - name: "restart neutron services"
       service: name={{ item }} state=restarted
       with_items:
@@ -186,8 +192,7 @@
   remote_user: root
   vars:
     verbose: true
-  vars_files:
-    - ./vars/os-variables.yml
+
   tasks:
     - name: "disable reverse path filtering"
       lineinfile: dest=/etc/sysctl.conf create=yes
@@ -217,6 +222,14 @@
       with_items:
         - {src: neutron.conf.j2, dst: neutron.conf}
         - {src: ml2_conf.ini.j2, dst: plugins/ml2/ml2_conf.ini}
+
+    - name: "Checking if interco bridge exists"
+      shell: "ovs-vsctl br-exists br-eth2"
+      register: found_br
+
+    - name: "Creating interco bridge"
+      shell: "ovs-vsctl add-br br-eth2"
+      when: found_br.rc != 0
 
     - name: "restart neutron services"
       service: name={{ item }} state=restarted
