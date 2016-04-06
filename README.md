@@ -2,11 +2,11 @@
 Ansible playbooks to deploy a Openstack Liberty on Ubuntu 14.04
 
 ## Neutron specific config:
-In order to make Neutron works you need to create manually some OVS bridges:
+In order to make Neutron works with floating ips, you need to create manually an external network:
 
 ```
-# ovs-vsctl add-br br-eth2
-# ovs-vsctl add-br br-ex
+# neutron net-create ext-net --router:external True --provider:physical_network External --provider:network_type flat
+# neutron subnet-create ext-net --name ext-subnet --allocation-pool start=192.168.129.40,end=192.168.129.50 --disable-dhcp --gateway 192.168.129.2 192.168.129.0/24
 ```
 
 Finally of you want access outside with you VM you need to add 1 nic and put it in the br-ex bridge:
@@ -38,7 +38,7 @@ ansible-playbook -i hosts.aio  -u root os-nova.yml
 ```
 ansible-playbook -i hosts.aio  -u root os-neutron.yml
 ```
-**Warning: Don't forget to add the bridges.**
+**Warning: Don't forget to add the external interface to the br-ex bridge.**
 - Install Cinder:
 ```
 ansible-playbook -i hosts.aio  -u root os-cinder.yml
