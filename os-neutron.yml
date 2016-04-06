@@ -123,7 +123,6 @@
       file: path=/var/lib/neutron/neutron.sqlite state=absent
 
 - hosts: os_network_nodes
-  remote_user: root
   vars:
     verbose: true
 
@@ -173,6 +172,7 @@
     - name: "Checking if external bridge exists"
       shell: "ovs-vsctl br-exists br-ex"
       register: found_br
+      ignore_errors: true
 
     - name: "Creating external bridge"
       shell: "ovs-vsctl add-br br-ex"
@@ -224,6 +224,7 @@
     - name: "Checking if interco bridge exists"
       shell: "ovs-vsctl br-exists br-eth2"
       register: found_br
+      ignore_errors: true
 
     - name: "Creating interco bridge"
       shell: "ovs-vsctl add-br br-eth2"
